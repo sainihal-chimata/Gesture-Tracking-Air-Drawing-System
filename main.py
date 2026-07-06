@@ -33,7 +33,7 @@ if st.sidebar.button("Clear Canvas"):
     AppState.prev_x = None
     AppState.prev_y = None
 
-# Pulls a real-time frame sequence directly from the user's browser webcam session safely
+# Streamlit's native browser camera proxy
 img_file_buffer = st.camera_input("Position your hand clearly in front of your camera to draw")
 
 if img_file_buffer is not None:
@@ -53,13 +53,9 @@ if img_file_buffer is not None:
         for handone in results.multi_hand_landmarks:
             draw.draw_landmarks(result, handone, hands.HAND_CONNECTIONS)
             index_finger = handone.landmark[8]
-            ix = index_finger.x
-            iy = index_finger.y
-            iz = index_finger.z
+            ix, iy = index_finger.x, index_finger.y
             thumb_finger = handone.landmark[4]
-            tx = thumb_finger.x
-            ty = thumb_finger.y
-            tz = thumb_finger.z
+            tx, ty = thumb_finger.x, thumb_finger.y
             
             distance = ((ix-tx)**2+(iy-ty)**2)**0.5
             pixel_x = int(ix*width)
