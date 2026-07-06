@@ -88,5 +88,8 @@ def video_frame_callback(frame):
 webrtc_streamer(
     key="air-drawing",
     video_frame_callback=video_frame_callback,
-    media_stream_constraints={"video": True, "audio": False}
+    media_stream_constraints={"video": True, "audio": False},
+    rtc_configuration={
+        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+    }
 )
