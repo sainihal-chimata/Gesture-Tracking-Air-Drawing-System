@@ -1,9 +1,7 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer
 import cv2
 import mediapipe as mp
 import numpy as np
-import av
 
 st.title("Gesture Air Drawing System")
 
@@ -12,7 +10,7 @@ draw = mp.solutions.drawing_utils
 
 @st.cache_resource
 def get_hand_detector():
-    return hands.Hands()
+    return hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 
 hand_detector = get_hand_detector()
 
@@ -31,12 +29,18 @@ AppState.mode = ui_mode.lower()
 AppState.current_color = (0, 255, 0) if ui_color == "Green" else (255, 0, 0) if ui_color == "Blue" else (0, 0, 255)
 
 if st.sidebar.button("Clear Canvas"):
-    if AppState.canvas is not None:
-        AppState.canvas = np.zeros_like(AppState.canvas)
+    AppState.canvas = None
+    AppState.prev_x = None
+    AppState.prev_y = None
 
-def video_frame_callback(frame):
-    img = frame.to_ndarray(format="bgr24")
-    result = cv2.flip(img, 1)
+# Pulls a real-time frame sequence directly from the user's browser webcam session safely
+img_file_buffer = st.camera_input("Position your hand clearly in front of your camera to draw")
+
+if img_file_buffer is not None:
+    bytes_data = img_file_buffer.getvalue()
+    cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+    
+    result = cv2.flip(cv2_img, 1)
     height, width, _ = result.shape
 
     if AppState.canvas is None or AppState.canvas.shape != result.shape:
@@ -56,9 +60,11 @@ def video_frame_callback(frame):
             tx = thumb_finger.x
             ty = thumb_finger.y
             tz = thumb_finger.z
+            
             distance = ((ix-tx)**2+(iy-ty)**2)**0.5
             pixel_x = int(ix*width)
             pixel_y = int(iy*height)
+            
             if AppState.prev_x is not None and AppState.prev_y is not None:
                 movement = ((pixel_x-AppState.prev_x)**2+(pixel_y-AppState.prev_y)**2)**0.5
                 if distance < 0.1 and movement > 5:
@@ -66,6 +72,7 @@ def video_frame_callback(frame):
                         cv2.line(AppState.canvas, (AppState.prev_x, AppState.prev_y), (pixel_x, pixel_y), (0, 0, 0), 20)
                     if AppState.mode == "draw":
                         cv2.line(AppState.canvas, (AppState.prev_x, AppState.prev_y), (pixel_x, pixel_y), AppState.current_color, 20)
+            
             AppState.prev_x = pixel_x
             AppState.prev_y = pixel_y
     else:
@@ -73,11 +80,4 @@ def video_frame_callback(frame):
         AppState.prev_y = None
 
     final = cv2.add(result, AppState.canvas)
-    return av.VideoFrame.from_ndarray(final, format="bgr24")
-
-webrtc_streamer(
-    key="air-drawing",
-    video_frame_callback=video_frame_callback,
-    media_stream_constraints={"video": True, "audio": False},
-    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-)
+    st.image(cv2.cvtColor(final, cv2.COLOR_BGR2RGB), use_container_width=True)
